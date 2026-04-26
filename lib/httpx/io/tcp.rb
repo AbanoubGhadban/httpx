@@ -211,7 +211,14 @@ module HTTPX
 
     def build_socket
       @ip = @addresses[@ip_index]
-      Socket.new(@ip.family, :STREAM, 0)
+      sock = Socket.new(@ip.family, :STREAM, 0)
+      # Disable Nagle. With TCP_NODELAY off, small writes are held until
+      # prior segments are ACKed, which interacts with the peer's delayed-ACK
+      # timer (Linux tcp_delack_min = 40ms) and produces a bimodal latency
+      # distribution with a second mode at ~40ms on HTTP/2 (where every
+      # frame is its own write). Net::HTTP and async-http both set this.
+      sock.setsockopt(Socket::IPPROTO_TCP, Socket::TCP_NODELAY, 1)
+      sock
     end
 
     def transition(nextstate)
